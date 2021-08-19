@@ -353,6 +353,18 @@ class TestTranslator(TestCase):
             translation, main.Replacement(entity_name="slot1", entity_value="facile")
         )
 
+        logger.debug("Testing with input type Replacement, entity_values with multiple tokens")
+        replacement = main.Replacement(entity_name="slot1", entity_value="to be")
+        translation = self.translator.translate(replacement)
+        self.assertEqual(
+            translation, main.Replacement(entity_name="slot1", entity_value="essere")
+        )
+        replacement = main.Replacement(entity_name="slot1", entity_value="office desk")
+        translation = self.translator.translate(replacement)
+        self.assertEqual(
+            translation, main.Replacement(entity_name="slot1", entity_value="scrivania per ufficio")
+        )
+
         logger.debug("Testing with input type ReplacementSet")
         replacement_set = main.ReplacementSet(
             replacements={"slot1": "is", "slot2": "easy",}
@@ -361,6 +373,15 @@ class TestTranslator(TestCase):
         self.assertEqual(
             translation,
             main.ReplacementSet(replacements={"slot1": "è", "slot2": "facile"}),
+        )
+        logger.debug("Testing with input type ReplacementSet, entity_values with multiple tokens")
+        replacement_set = main.ReplacementSet(
+            replacements={"slot1": "to be", "slot2": "office desk",}
+        )
+        translation = self.translator.translate(replacement_set)
+        self.assertEqual(
+            translation,
+            main.ReplacementSet(replacements={"slot1": "essere", "slot2": "scrivania per ufficio"}),
         )
 
         logger.debug("Testing with input type TokenSequence")
@@ -376,6 +397,23 @@ class TestTranslator(TestCase):
                 main.Token(text="entity", is_placeholder=True),
                 main.Token(text="è", is_placeholder=False),
                 main.Token(text="facile", is_placeholder=False),
+            ]
+        )
+        translation = self.translator.translate(source)
+        logger.debug(translation)
+        self.assertEqual(self.translator.translate(source), expected_out)
+
+        logger.debug("Testing with input type TokenSequence with words that get translated to multiple tokens")
+        source = main.TokenSequence(
+            [
+                main.Token(text="quantity", is_placeholder=True),
+                main.Token(text="snowballs", is_placeholder=False),
+            ]
+        )
+        expected_out = main.TokenSequence(
+            [
+                main.Token(text="quantity", is_placeholder=True),
+                main.Token(text="palle di neve", is_placeholder=False),
             ]
         )
         translation = self.translator.translate(source)
@@ -400,8 +438,46 @@ class TestTranslator(TestCase):
         translation = self.translator.translate(my_template)
         self.assertEqual(translation[0].tokens, translated_frame)
         self.assertEqual(translation[0].replacement_sets, translated_repl_sets)
+
+        logger.debug("Testing with input type Template with entity values that get translated to multiple tokens")
+        template_frame = main.TokenSequence()
+        translated_frame = main.TokenSequence()
+        tokenizer = main.Tokenizer()
+        template_frame.from_string(" the {object} is {attribute}", tokenizer)
+        translated_frame.from_string("la {object} è {attribute}", tokenizer)
+        replacement_sets = [
+            main.ReplacementSet({"object": "mailbox", "attribute": "big"}),
+        ]
+        translated_repl_sets = [
+            main.ReplacementSet({"object": "casella di posta", "attribute": "grande"}),
+        ]
+        my_template = main.Template(
+            tokens=template_frame, replacement_sets=replacement_sets
+        )
+        translation = self.translator.translate(my_template)
+        self.assertEqual(translation[0].tokens, translated_frame)
+        self.assertEqual(translation[0].replacement_sets, translated_repl_sets)
+
+        logger.debug("Testing with input type Template with entity values that get translated to multiple tokens and multi-token entity values")
+        template_frame = main.TokenSequence()
+        translated_frame = main.TokenSequence()
+        tokenizer = main.Tokenizer()
+        template_frame.from_string(" the {object} is {attribute}", tokenizer)
+        translated_frame.from_string("la {object} è {attribute}", tokenizer)
+        replacement_sets = [
+            main.ReplacementSet({"object": "mailbox", "attribute": "very big"}),
+        ]
+        translated_repl_sets = [
+            main.ReplacementSet({"object": "casella di posta", "attribute": "molto grande"}),
+        ]
+        my_template = main.Template(
+            tokens=template_frame, replacement_sets=replacement_sets
+        )
+        translation = self.translator.translate(my_template)
+        self.assertEqual(translation[0].tokens, translated_frame)
+        self.assertEqual(translation[0].replacement_sets, translated_repl_sets)
+
         # TODO: add more tests (e.g. with multiple repl sets)
-        # TODO: add case with multi-token values!
 
         logger.debug("Testing with unsupported input type")
         with self.assertRaises(TypeError):

@@ -429,6 +429,7 @@ class Translator:
                     for i in range(matching_index, matching_index + len(tokens_search)):
                         tokenized_trans_lex[i].text = trans_rep.entity_name
                         tokenized_trans_lex[i].is_placeholder = True
+                    tokenized_trans_lex = (tokenized_trans_lex[:matching_index + 1] + tokenized_trans_lex[matching_index + len(tokens_search):])
             if translation_success:
                 translated_template = Template(TokenSequence(tokenized_trans_lex), [trans_rep_set])
                 out.append(translated_template)
