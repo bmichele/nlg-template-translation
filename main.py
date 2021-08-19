@@ -412,26 +412,51 @@ class Translator:
             self._tokenizer.tokenize_sequence(translated_lex)
             for translated_lex in translated_lexicalizations
         ]
-        out = []  # will contain all the lexicalization for which it is possible to extract a translated template
-        for tokenized_trans_lex, trans_rep_set in zip(tokenized_trans_lexicalizations, translated_replacements):
-            logging.debug("looking for translated values in the translated lex {}".format(tokenized_trans_lex))
+        out = (
+            []
+        )  # will contain all the lexicalization for which it is possible to extract a translated template
+        for tokenized_trans_lex, trans_rep_set in zip(
+            tokenized_trans_lexicalizations, translated_replacements
+        ):
+            logging.debug(
+                "looking for translated values in the translated lex {}".format(
+                    tokenized_trans_lex
+                )
+            )
             translation_success = True  # bookkeeping to add only successfully translated lexicalization to the final output
             for trans_rep in trans_rep_set.replacements:
                 # look for the token with the text matching with the value of the replacement
-                tokens_search = TokenSequence(self._tokenizer.tokenize_sequence(trans_rep.entity_value))
-                matching_index = TokenSequence(tokenized_trans_lex).match_subtokens_with_index(tokens_search)
+                tokens_search = TokenSequence(
+                    self._tokenizer.tokenize_sequence(trans_rep.entity_value)
+                )
+                matching_index = TokenSequence(
+                    tokenized_trans_lex
+                ).match_subtokens_with_index(tokens_search)
                 if matching_index == -1:
-                    logging.debug("not able to find the translated values {}".format(tokens_search))
+                    logging.debug(
+                        "not able to find the translated values {}".format(
+                            tokens_search
+                        )
+                    )
                     translation_success = False
                     break
                 else:
-                    logging.debug("found translated value {} at index {}. updating tokenized translation".format(tokens_search, matching_index))
+                    logging.debug(
+                        "found translated value {} at index {}. updating tokenized translation".format(
+                            tokens_search, matching_index
+                        )
+                    )
                     for i in range(matching_index, matching_index + len(tokens_search)):
                         tokenized_trans_lex[i].text = trans_rep.entity_name
                         tokenized_trans_lex[i].is_placeholder = True
-                    tokenized_trans_lex = (tokenized_trans_lex[:matching_index + 1] + tokenized_trans_lex[matching_index + len(tokens_search):])
+                    tokenized_trans_lex = (
+                        tokenized_trans_lex[: matching_index + 1]
+                        + tokenized_trans_lex[matching_index + len(tokens_search) :]
+                    )
             if translation_success:
-                translated_template = Template(TokenSequence(tokenized_trans_lex), [trans_rep_set])
+                translated_template = Template(
+                    TokenSequence(tokenized_trans_lex), [trans_rep_set]
+                )
                 out.append(translated_template)
 
         return out
