@@ -1,13 +1,11 @@
+import functools
 import logging
 import re
 from typing import List, Union, Dict, Optional
 
 from nltk.tokenize import WordPunctTokenizer
-from transformers import MarianTokenizer, MarianModel
 from nltk.tokenize.treebank import TreebankWordDetokenizer
-
-
-import functools
+from transformers import MarianTokenizer, MarianModel
 
 
 class Token:
@@ -90,6 +88,14 @@ class ReplacementSet:
                 self._replacements = replacements
             elif type(replacements) == dict:
                 self.parse_dict(replacements)
+
+    def __str__(self):
+        return "ReplacementSet({})".format(
+            ", ".join(str(replacement) for replacement in self._replacements)
+        )
+
+    def __repr__(self):
+        return str(self)
 
     def __len__(self):
         return len(self._replacements)
