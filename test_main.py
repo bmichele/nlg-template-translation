@@ -25,6 +25,12 @@ class TestToken(TestCase):
         my_token = main.Token(is_placeholder=True)
         self.assertTrue(my_token.is_placeholder)
 
+    def test_lower(self):
+        my_token = main.Token(text="TEST", is_placeholder=False)
+        lower_token = my_token.lower()
+        self.assertEqual(main.Token("TEST", False), my_token)
+        self.assertEqual(main.Token("test", False), lower_token)
+
     def test__eq__(self):
         my_token_1 = main.Token("this", is_placeholder=False)
         my_token_eq = main.Token("this", is_placeholder=False)
@@ -215,6 +221,36 @@ class TestTokenSequence(TestCase):
             my_token_seq.as_string(self.my_tokenizer), "this {attribute} is {value}"
         )
 
+    def test_lower(self):
+        my_sequence = main.TokenSequence(
+            [
+                main.Token("THIS", False),
+                main.Token("Is", False),
+                main.Token("cApItAlIzEd", False),
+            ]
+        )
+
+        self.assertEqual(
+            my_sequence.lower(),
+            main.TokenSequence(
+                [
+                    main.Token("this", False),
+                    main.Token("is", False),
+                    main.Token("capitalized", False),
+                ]
+            ),
+        )
+        self.assertEqual(
+            my_sequence,
+            main.TokenSequence(
+                [
+                    main.Token("THIS", False),
+                    main.Token("Is", False),
+                    main.Token("cApItAlIzEd", False),
+                ]
+            ),
+        )
+
     def test_lexicalize(self):
         my_template = main.TokenSequence()
         template_string = "this is a {attribute} template with {count} slots"
@@ -246,6 +282,15 @@ class TestTokenSequence(TestCase):
         ]
     )
 
+    full_seq_capitalized = main.TokenSequence(
+        [
+            main.Token(text="WORD1", is_placeholder=False),
+            main.Token(text="WORD2", is_placeholder=False),
+            main.Token(text="WORD3", is_placeholder=False),
+            main.Token(text="WORD4", is_placeholder=False),
+        ]
+    )
+
     start_seq = main.TokenSequence(
         [
             main.Token(text="word1", is_placeholder=False),
@@ -257,6 +302,13 @@ class TestTokenSequence(TestCase):
         [
             main.Token(text="word2", is_placeholder=False),
             main.Token(text="word3", is_placeholder=False),
+        ]
+    )
+
+    mid_seq_capital = main.TokenSequence(
+        [
+            main.Token(text="WORD2", is_placeholder=False),
+            main.Token(text="WORD3", is_placeholder=False),
         ]
     )
 
@@ -272,6 +324,7 @@ class TestTokenSequence(TestCase):
         self.assertFalse(self.full_seq.startswith(self.mid_seq))
 
     def test_match_subtokens(self):
+        logger.debug("Test with case_sensitive to default value")
         self.assertTrue(self.full_seq.match_subtokens(self.mid_seq))
         self.assertFalse(self.full_seq.match_subtokens(self.other_seq))
         longer_seq = main.TokenSequence(
@@ -285,9 +338,26 @@ class TestTokenSequence(TestCase):
         )
         self.assertFalse(self.full_seq.match_subtokens(longer_seq))
 
+        logger.debug("Test with case_sensitive=True")
+        self.assertTrue(self.full_seq.match_subtokens(self.mid_seq, case_sensitive=True))
+        self.assertFalse(self.full_seq.match_subtokens(self.other_seq, case_sensitive=True))
+        self.assertFalse(self.full_seq.match_subtokens(self.full_seq_capitalized, case_sensitive=True))
+        self.assertFalse(self.full_seq.match_subtokens(longer_seq, case_sensitive=True))
+
+        logger.debug("Test with case_sensitive=False")
+        self.assertTrue(self.full_seq.match_subtokens(self.mid_seq_capital, case_sensitive=False))
+        self.assertTrue(self.full_seq.match_subtokens(self.full_seq_capitalized, case_sensitive=False))
+        self.assertFalse(self.full_seq.match_subtokens(longer_seq, case_sensitive=False))
+
     def test_match_subtokens_with_index(self):
         self.assertEqual(self.full_seq.match_subtokens_with_index(self.mid_seq), 1)
         self.assertEqual(self.full_seq.match_subtokens_with_index(self.other_seq), -1)
+        self.assertEqual(self.full_seq.match_subtokens_with_index(self.mid_seq_capital), -1)
+
+        logger.debug("Test with case_sensitive=False")
+        self.assertEqual(self.full_seq_capitalized.match_subtokens_with_index(self.mid_seq, case_sensitive=False), 1)
+        self.assertEqual(self.full_seq.match_subtokens_with_index(self.mid_seq_capital, case_sensitive=False), 1)
+        self.assertEqual(self.full_seq_capitalized.match_subtokens_with_index(self.other_seq, case_sensitive=False), -1)
 
 
 class TestTemplate(TestCase):
@@ -331,11 +401,12 @@ class TestTemplate(TestCase):
     def test_parse_nlg_format(self):
         my_template = main.Template()
         my_tokenizer = main.Tokenizer()
-        my_template.parse_nlg_format(
+        out = my_template.parse_nlg_format(
             "the snow is not always white",
             main.ReplacementSet({"entity": "the snow", "attribute": "always white"}),
             my_tokenizer,
         )
+        self.assertTrue(out)
         self.assertEqual(
             main.TokenSequence(
                 [
@@ -351,6 +422,33 @@ class TestTemplate(TestCase):
             [main.ReplacementSet({"entity": "the snow", "attribute": "always white"})],
             my_template.replacement_sets,
         )
+        # TODO: add case where out is False (no match)
+        logger.debug("case_sensitive set to False")
+        my_template = main.Template()
+        my_tokenizer = main.Tokenizer()
+        out = my_template.parse_nlg_format(
+            "the snow is not always white",
+            main.ReplacementSet({"entity": "The snow", "attribute": "Always white"}),
+            my_tokenizer,
+            case_sensitive=False
+        )
+        self.assertTrue(out)
+        self.assertEqual(
+            main.TokenSequence(
+                [
+                    main.Token("entity", True),
+                    main.Token("is", False),
+                    main.Token("not", False),
+                    main.Token("attribute", True),
+                ]
+            ),
+            my_template.tokens,
+        )
+        self.assertEqual(
+            [main.ReplacementSet({"entity": "The snow", "attribute": "Always white"})],
+            my_template.replacement_sets,
+        )
+        # TODO: add chech on template.tokens (should still contain capital letters as original string)
 
     def test_get_realizations(self):
         my_template = main.Template(

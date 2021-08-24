@@ -42,6 +42,9 @@ class Token:
     def is_placeholder(self, is_placeholder):
         self._is_placeholder = is_placeholder
 
+    def lower(self):
+        return Token(text=self._text.lower(), is_placeholder=self._is_placeholder)
+
 
 class Replacement:
     def __init__(
@@ -221,6 +224,9 @@ class TokenSequence:
     def as_string(self, tokenizer: Tokenizer) -> str:
         return tokenizer.detokenize(self.tokens)
 
+    def lower(self):
+        return TokenSequence([token.lower() for token in self._tokens])
+
     def lexicalize(self, replacements: ReplacementSet) -> List[Token]:
         slot_entities = [t.text for t in self._tokens if t.is_placeholder]
         logging.debug("sequence has slots: {}".format(slot_entities))
@@ -244,7 +250,7 @@ class TokenSequence:
     def startswith(self, other) -> bool:
         return self.tokens[: len(other._tokens)] == other._tokens
 
-    def match_subtokens(self, other) -> bool:
+    def match_subtokens(self, other, case_sensitive : Optional[bool] = True) -> bool:
         def _match_subtokens(sequence_1: TokenSequence, sequence_2: TokenSequence):
             if len(sequence_1.tokens) <= len(sequence_2.tokens):
                 return sequence_1.tokens == sequence_2.tokens
@@ -254,10 +260,12 @@ class TokenSequence:
                 return _match_subtokens(
                     TokenSequence(sequence_1.tokens[1:]), sequence_2
                 )
+        if not case_sensitive:
+            return _match_subtokens(self.lower(), other.lower())
+        else:
+            return _match_subtokens(self, other)
 
-        return _match_subtokens(self, other)
-
-    def match_subtokens_with_index(self, other) -> int:
+    def match_subtokens_with_index(self, other, case_sensitive: Optional[bool] = True) -> int:
         def _match_subtokens_acc(
             sequence_1: TokenSequence, sequence_2: TokenSequence, accumulator: int
         ) -> int:
@@ -269,8 +277,10 @@ class TokenSequence:
                 return _match_subtokens_acc(
                     TokenSequence(sequence_1.tokens[1:]), sequence_2, accumulator + 1,
                 )
-
-        return _match_subtokens_acc(self, other, 0)
+        if not case_sensitive:
+            return _match_subtokens_acc(self.lower(), other.lower(), 0)
+        else:
+            return _match_subtokens_acc(self, other, 0)
 
 
 class Template:
@@ -301,7 +311,7 @@ class Template:
         self._replacement_sets = replacement_sets
 
     def parse_nlg_format(
-        self, message: str, replacement_set: ReplacementSet, tokenizer: Tokenizer
+        self, message: str, replacement_set: ReplacementSet, tokenizer: Tokenizer, case_sensitive: Optional[bool] = True
     ) -> bool:
         parsed_tokens = tokenizer.tokenize_sequence(message)
         self._replacement_sets = [replacement_set]
@@ -312,7 +322,8 @@ class Template:
                 tokenizer.tokenize_sequence(replacement.entity_value)
             )
             matching_index = TokenSequence(parsed_tokens).match_subtokens_with_index(
-                tokens_search
+                tokens_search,
+                case_sensitive
             )
             if matching_index == -1:
                 return False
@@ -448,7 +459,7 @@ class Translator:
         ]
         return translation
 
-    def _translate_template(self, source: Template) -> List[Template]:
+    def _translate_template(self, source: Template, case_sensitive: Optional[bool] = True) -> List[Template]:
         lexicalizations = source.get_realizations(
             as_text=True, tokenizer=self._tokenizer
         )
@@ -482,7 +493,7 @@ class Translator:
                 )
                 matching_index = TokenSequence(
                     tokenized_trans_lex
-                ).match_subtokens_with_index(tokens_search)
+                ).match_subtokens_with_index(tokens_search, case_sensitive)
                 if matching_index == -1:
                     logging.debug(
                         "not able to find the translated values {}".format(
@@ -515,6 +526,7 @@ class Translator:
     def translate(
         self,
         source: Union[List[str], Replacement, ReplacementSet, TokenSequence, Template],
+        case_sensitive: Optional[bool] = True
     ) -> Union[List[str], Replacement, ReplacementSet, TokenSequence, List[Template]]:
         """
         Translate the input object. When translating a Replacement object, only the entity_value get translated (the
@@ -530,6 +542,6 @@ class Translator:
         elif type(source) == TokenSequence:
             return self._translate_token_seq(source)
         elif type(source) == Template:
-            return self._translate_template(source)
+            return self._translate_template(source, case_sensitive)
         else:
             raise TypeError("Unsupported source type {}".format(type(source)))
