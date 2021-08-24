@@ -198,7 +198,7 @@ class TokenSequence:
             and len(self) == len(other)
             and all(
                 token_1 == token_2
-                for (token_1, token_2) in zip(self.tokens, other.tokens)
+                for (token_1, token_2) in zip(self.tokens, other._tokens)
             )
         ):
             return True
@@ -242,7 +242,7 @@ class TokenSequence:
         return out
 
     def startswith(self, other) -> bool:
-        return self.tokens[: len(other.tokens)] == other.tokens
+        return self.tokens[: len(other._tokens)] == other._tokens
 
     def match_subtokens(self, other) -> bool:
         def _match_subtokens(sequence_1: TokenSequence, sequence_2: TokenSequence):
@@ -279,17 +279,61 @@ class Template:
         tokens: Optional[TokenSequence] = None,
         replacement_sets: Optional[List[ReplacementSet]] = None,
     ):
-        self.tokens: TokenSequence = tokens if tokens else TokenSequence()
-        self.replacement_sets: List[
+        self._tokens: TokenSequence = tokens if tokens else TokenSequence()
+        self._replacement_sets: List[
             ReplacementSet
         ] = replacement_sets if replacement_sets else []
+
+    @property
+    def tokens(self):
+        return self._tokens
+
+    @tokens.setter
+    def tokens(self, tokens: TokenSequence):
+        self._tokens = tokens
+
+    @property
+    def replacement_sets(self):
+        return self._replacement_sets
+
+    @replacement_sets.setter
+    def replacement_sets(self, replacement_sets: List[ReplacementSet]):
+        self._replacement_sets = replacement_sets
+
+    def parse_nlg_format(
+        self, message: str, replacement_set: ReplacementSet, tokenizer: Tokenizer
+    ) -> bool:
+        parsed_tokens = tokenizer.tokenize_sequence(message)
+        self._replacement_sets = [replacement_set]
+        # replace tokens with placeholder tokens by matching the values of the given replacement set
+        for replacement in replacement_set.replacements:
+            # TODO: the following code is a duplicate from Translator._translate_template, so it can be improved
+            tokens_search = TokenSequence(
+                tokenizer.tokenize_sequence(replacement.entity_value)
+            )
+            matching_index = TokenSequence(parsed_tokens).match_subtokens_with_index(
+                tokens_search
+            )
+            if matching_index == -1:
+                return False
+            else:
+                for i in range(matching_index, matching_index + len(tokens_search)):
+                    parsed_tokens[i].text = replacement.entity_name
+                    parsed_tokens[i].is_placeholder = True
+                parsed_tokens = (
+                    parsed_tokens[: matching_index + 1]
+                    + parsed_tokens[matching_index + len(tokens_search) :]
+                )
+
+        self._tokens = TokenSequence(parsed_tokens)
+        return True
 
     def get_realizations(
         self, as_text: Optional[bool] = False, tokenizer: Optional[Tokenizer] = None
     ) -> Union[List[TokenSequence], List[str]]:
         realizations = [
-            TokenSequence(self.tokens.lexicalize(replacements=replacement_set))
-            for replacement_set in self.replacement_sets
+            TokenSequence(self._tokens.lexicalize(replacements=replacement_set))
+            for replacement_set in self._replacement_sets
         ]
         if as_text:
             if tokenizer:
@@ -346,7 +390,7 @@ class Translator:
     def _translate_token_seq(self, source: TokenSequence) -> TokenSequence:
         placeholder_tokens = []
         actual_tokens = []
-        logging.debug("separating placeholders from actual tokens")
+        logging.debug("separating placeholders from actual _tokens")
         for token in source.tokens:
             if token.is_placeholder:
                 placeholder_tokens.append(token)
@@ -354,11 +398,11 @@ class Translator:
                 actual_tokens.append(token)
         logging.debug("placeholder Tokens: {}".format(placeholder_tokens))
         logging.debug("actual Tokens: {}".format(actual_tokens))
-        # translated only the actual tokens - placeholders are not translated
+        # translated only the actual _tokens - placeholders are not translated
         source_text = [token.text for token in actual_tokens]
         logging.debug("translating text of actual Tokens: {}".format(source_text))
         translated_tokens = self.translate(source_text)
-        logging.debug("translated text tokens {}".format(translated_tokens))
+        logging.debug("translated text _tokens {}".format(translated_tokens))
         assert len(source_text) == len(
             translated_tokens
         ), "something went wrong in the translation (cache problem? try to set _cache_size to 0)"
@@ -371,14 +415,14 @@ class Translator:
                 translated_token = translated_tokens.pop(0)
                 translation.append(Token(text=translated_token, is_placeholder=False))
         logging.debug(
-            "leftover tokens {}, {}".format(placeholder_tokens, translated_tokens)
+            "leftover _tokens {}, {}".format(placeholder_tokens, translated_tokens)
         )
         assert (
             len(placeholder_tokens) == 0
-        ), "some placeholder tokens where not appended to the final output"
+        ), "some placeholder _tokens where not appended to the final output"
         assert (
             len(translated_tokens) == 0
-        ), "some tokens where translated and not appended to the final output"
+        ), "some _tokens where translated and not appended to the final output"
         return TokenSequence(translation)
 
     def _translate_replacement(self, source: Replacement) -> Replacement:
@@ -412,7 +456,7 @@ class Translator:
         translated_lexicalizations = self._translate_list_str(lexicalizations)
         translated_replacements = [
             self._translate_replacementset(replacement_set)
-            for replacement_set in source.replacement_sets
+            for replacement_set in source._replacement_sets
         ]
         tokenized_trans_lexicalizations = [
             self._tokenizer.tokenize_sequence(translated_lex)
@@ -429,7 +473,8 @@ class Translator:
                     tokenized_trans_lex
                 )
             )
-            translation_success = True  # bookkeeping to add only successfully translated lexicalization to the final output
+            translation_success = True  # bookkeeping to add only successfully translated lexicalization to the final
+            # output
             for trans_rep in trans_rep_set.replacements:
                 # look for the token with the text matching with the value of the replacement
                 tokens_search = TokenSequence(
@@ -472,9 +517,9 @@ class Translator:
         source: Union[List[str], Replacement, ReplacementSet, TokenSequence, Template],
     ) -> Union[List[str], Replacement, ReplacementSet, TokenSequence, List[Template]]:
         """
-        Translate the input object. When translating a Replacement object, only the entity_value get translated (the entity name is not translated).
-        :param source: Object to be translated
-        :return: New object, with translated values
+        Translate the input object. When translating a Replacement object, only the entity_value get translated (the
+        entity name is not translated).
+        :param source: Object to be translated :return: New object, with translated values
         """
         if type(source) == list:
             return self._translate_list_str(source)

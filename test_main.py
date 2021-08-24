@@ -291,19 +291,70 @@ class TestTokenSequence(TestCase):
 
 
 class TestTemplate(TestCase):
-    def test_get_realizations(self):
-        my_template = main.Template(
-            tokens=main.TokenSequence(
+    my_token_sequence = main.TokenSequence(
+        [
+            main.Token(text="entity", is_placeholder=True),
+            main.Token(text="is", is_placeholder=False),
+            main.Token(text="attribute", is_placeholder=True),
+        ]
+    )
+    my_replacement_sets = [
+        main.ReplacementSet({"entity": "sky", "attribute": "blue"}),
+        main.ReplacementSet({"entity": "snow", "attribute": "white"}),
+    ]
+
+    def test_tokens(self):
+        my_template = main.Template()
+        my_template.tokens = self.my_token_sequence
+        self.assertEqual(
+            main.TokenSequence(
                 [
-                    main.Token(text="entity", is_placeholder=True),
-                    main.Token(text="is", is_placeholder=False),
-                    main.Token(text="attribute", is_placeholder=True),
+                    main.Token("entity", True),
+                    main.Token("is", False),
+                    main.Token("attribute", True),
                 ]
             ),
-            replacement_sets=[
+            my_template.tokens,
+        )
+
+    def test_replacement_sets(self):
+        my_template = main.Template()
+        my_template.replacement_sets = self.my_replacement_sets
+        self.assertEqual(
+            [
                 main.ReplacementSet({"entity": "sky", "attribute": "blue"}),
                 main.ReplacementSet({"entity": "snow", "attribute": "white"}),
             ],
+            my_template.replacement_sets,
+        )
+
+    def test_parse_nlg_format(self):
+        my_template = main.Template()
+        my_tokenizer = main.Tokenizer()
+        my_template.parse_nlg_format(
+            "the snow is not always white",
+            main.ReplacementSet({"entity": "the snow", "attribute": "always white"}),
+            my_tokenizer,
+        )
+        self.assertEqual(
+            main.TokenSequence(
+                [
+                    main.Token("entity", True),
+                    main.Token("is", False),
+                    main.Token("not", False),
+                    main.Token("attribute", True),
+                ]
+            ),
+            my_template.tokens,
+        )
+        self.assertEqual(
+            [main.ReplacementSet({"entity": "the snow", "attribute": "always white"})],
+            my_template.replacement_sets,
+        )
+
+    def test_get_realizations(self):
+        my_template = main.Template(
+            tokens=self.my_token_sequence, replacement_sets=self.my_replacement_sets,
         )
         self.assertEqual(
             my_template.get_realizations(),
@@ -445,8 +496,8 @@ class TestTranslator(TestCase):
             tokens=template_frame, replacement_sets=replacement_sets
         )
         translation = self.translator.translate(my_template)
-        self.assertEqual(translation[0].tokens, translated_frame)
-        self.assertEqual(translation[0].replacement_sets, translated_repl_sets)
+        self.assertEqual(translation[0]._tokens, translated_frame)
+        self.assertEqual(translation[0]._replacement_sets, translated_repl_sets)
 
         logger.debug(
             "Testing with input type Template with entity values that get translated to multiple tokens"
@@ -466,8 +517,8 @@ class TestTranslator(TestCase):
             tokens=template_frame, replacement_sets=replacement_sets
         )
         translation = self.translator.translate(my_template)
-        self.assertEqual(translation[0].tokens, translated_frame)
-        self.assertEqual(translation[0].replacement_sets, translated_repl_sets)
+        self.assertEqual(translation[0]._tokens, translated_frame)
+        self.assertEqual(translation[0]._replacement_sets, translated_repl_sets)
 
         logger.debug(
             "Testing with input type Template with entity values that get translated to multiple tokens and "
@@ -490,8 +541,8 @@ class TestTranslator(TestCase):
             tokens=template_frame, replacement_sets=replacement_sets
         )
         translation = self.translator.translate(my_template)
-        self.assertEqual(translation[0].tokens, translated_frame)
-        self.assertEqual(translation[0].replacement_sets, translated_repl_sets)
+        self.assertEqual(translation[0]._tokens, translated_frame)
+        self.assertEqual(translation[0]._replacement_sets, translated_repl_sets)
 
         # TODO: add more tests (e.g. with multiple repl sets)
 
