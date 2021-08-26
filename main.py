@@ -7,6 +7,8 @@ from nltk.tokenize import WordPunctTokenizer
 from nltk.tokenize.treebank import TreebankWordDetokenizer
 from transformers import MarianTokenizer, MarianModel
 
+logger = logging.getLogger(__name__)
+
 
 class Token:
     def __init__(
@@ -160,20 +162,20 @@ class Tokenizer:
             )
             slot_placeholders[placeholder] = slot_key
             slot_counter += 1
-        logging.debug("processed string: {}".format(string_tmpl_processed))
-        logging.debug("slots found: {}".format(slot_placeholders))
+        logger.debug("processed string: {}".format(string_tmpl_processed))
+        logger.debug("slots found: {}".format(slot_placeholders))
         # tokenize the processed string
         string_tmpl_tokenized = self._wp_tokenizer.tokenize(string_tmpl_processed)
-        logging.debug("tokenized sequence: {}".format(string_tmpl_tokenized))
+        logger.debug("tokenized sequence: {}".format(string_tmpl_tokenized))
         out = []
         for t in string_tmpl_tokenized:
             token_obj = Token()
             if t.startswith(self._slot_placeholder):
-                logging.debug("slot token object {}".format(t))
+                logger.debug("slot token object {}".format(t))
                 token_obj.text = slot_placeholders[t][1:-1]
                 token_obj.is_placeholder = True
             else:
-                logging.debug("text token object {}".format(t))
+                logger.debug("text token object {}".format(t))
                 token_obj.text = t
                 token_obj.is_placeholder = False
             out.append(token_obj)
@@ -229,11 +231,11 @@ class TokenSequence:
 
     def lexicalize(self, replacements: ReplacementSet) -> List[Token]:
         slot_entities = [t.text for t in self._tokens if t.is_placeholder]
-        logging.debug("sequence has slots: {}".format(slot_entities))
+        logger.debug("sequence has slots: {}".format(slot_entities))
         out = self._tokens.copy()
         for replacement in replacements.replacements:
             if replacement.entity_name in slot_entities:
-                logging.debug("realizing slot {}".format(replacement))
+                logger.debug("realizing slot {}".format(replacement))
                 index_token_to_be_replaced = [t.text for t in out].index(
                     replacement.entity_name
                 )
@@ -242,7 +244,7 @@ class TokenSequence:
                 new_token.is_placeholder = False
                 out[index_token_to_be_replaced] = new_token
             else:
-                logging.debug(
+                logger.debug(
                     "replacement {} not found in sequence".format(replacement)
                 )
         return out
@@ -401,31 +403,31 @@ class Translator:
     def _translate_token_seq(self, source: TokenSequence) -> TokenSequence:
         placeholder_tokens = []
         actual_tokens = []
-        logging.debug("separating placeholders from actual _tokens")
+        logger.debug("separating placeholders from actual _tokens")
         for token in source.tokens:
             if token.is_placeholder:
                 placeholder_tokens.append(token)
             else:
                 actual_tokens.append(token)
-        logging.debug("placeholder Tokens: {}".format(placeholder_tokens))
-        logging.debug("actual Tokens: {}".format(actual_tokens))
+        logger.debug("placeholder Tokens: {}".format(placeholder_tokens))
+        logger.debug("actual Tokens: {}".format(actual_tokens))
         # translated only the actual _tokens - placeholders are not translated
         source_text = [token.text for token in actual_tokens]
-        logging.debug("translating text of actual Tokens: {}".format(source_text))
+        logger.debug("translating text of actual Tokens: {}".format(source_text))
         translated_tokens = self.translate(source_text)
-        logging.debug("translated text _tokens {}".format(translated_tokens))
+        logger.debug("translated text _tokens {}".format(translated_tokens))
         assert len(source_text) == len(
             translated_tokens
         ), "something went wrong in the translation (cache problem? try to set _cache_size to 0)"
         translation = []
         for i, token in enumerate(source.tokens):
-            logging.debug("appending translation of source token {}".format(token))
+            logger.debug("appending translation of source token {}".format(token))
             if token.is_placeholder:
                 translation.append(placeholder_tokens.pop(0))
             else:
                 translated_token = translated_tokens.pop(0)
                 translation.append(Token(text=translated_token, is_placeholder=False))
-        logging.debug(
+        logger.debug(
             "leftover _tokens {}, {}".format(placeholder_tokens, translated_tokens)
         )
         assert (
@@ -479,7 +481,7 @@ class Translator:
         for tokenized_trans_lex, trans_rep_set in zip(
             tokenized_trans_lexicalizations, translated_replacements
         ):
-            logging.debug(
+            logger.debug(
                 "looking for translated values in the translated lex {}".format(
                     tokenized_trans_lex
                 )
@@ -495,7 +497,7 @@ class Translator:
                     tokenized_trans_lex
                 ).match_subtokens_with_index(tokens_search, case_sensitive)
                 if matching_index == -1:
-                    logging.debug(
+                    logger.debug(
                         "not able to find the translated values {}".format(
                             tokens_search
                         )
@@ -503,7 +505,7 @@ class Translator:
                     translation_success = False
                     break
                 else:
-                    logging.debug(
+                    logger.debug(
                         "found translated value {} at index {}. updating tokenized translation".format(
                             tokens_search, matching_index
                         )
