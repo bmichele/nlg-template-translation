@@ -5,7 +5,8 @@ from typing import List, Union, Dict, Optional
 
 from nltk.tokenize import WordPunctTokenizer
 from nltk.tokenize.treebank import TreebankWordDetokenizer
-from transformers import MarianTokenizer, MarianMTModel
+from transformers.modeling_utils import PreTrainedModel
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 logger = logging.getLogger(__name__)
 
@@ -367,8 +368,8 @@ class Translator:
 
     def __init__(
         self,
-        tokenizer: Optional[MarianTokenizer] = None,
-        model: Optional[MarianMTModel] = None,
+        tokenizer: Optional[PreTrainedTokenizerBase] = None,
+        model: Optional[PreTrainedModel] = None,
         concat_placeholder: Optional[str] = ">>>CONCAT<<<",
     ):
         self._mt_tokenizer = tokenizer
